@@ -12,6 +12,8 @@ import { handleDailyNote } from "./tools/daily.js";
 import { handleHealthCheck } from "./tools/health.js";
 import { handleGetBacklinks, handleGetTags, handleGetMetadata } from "./tools/bridge.js";
 import { handleGitSync } from "./tools/git.js";
+import { handleGetVaultTree, handleGetRecentNotes, handleGetAllTags } from "./tools/structure.js";
+import { handleFindOrphanNotes, handleFindBrokenLinks, handleRelatedNotes, handleSearchByTag, handleVaultStats } from "./tools/intelligence.js";
 
 const server = new Server(
   { name: "obsidian-mcp", version: "1.0.0" },
@@ -133,6 +135,33 @@ const TOOLS = [
     },
   },
   {
+    name: "get_vault_tree",
+    description: "Get the full recursive folder structure of the vault with note counts per folder. Use this at the start of a session to orient to the vault layout without multiple list_folder calls.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        depth: { type: "string", description: "Max folder depth to expand (default: 4)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_recent_notes",
+    description: "Get the N most recently modified notes with timestamps. Use this to see what's been actively worked on.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "string", description: "Number of notes to return (default: 10)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_all_tags",
+    description: "Get all tags used across the vault with occurrence counts, sorted by frequency.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "git_sync",
     description: "Commit and push any uncommitted changes for Obsidian tools (obsidian-mcp, obsidian-claude-panel, obsidian-finance-sync). Pass a project name to sync one, or omit/pass 'all' to sync all three.",
     inputSchema: {
@@ -145,6 +174,51 @@ const TOOLS = [
       },
       required: [],
     },
+  },
+  // ── Intelligence & Discovery ───────────────────────────────────────────────
+  {
+    name: "find_orphan_notes",
+    description: "Find notes with no incoming wiki links — notes that nothing in the vault points to. Useful for surfacing forgotten knowledge. Optionally filter by folder prefix.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        folder: { type: "string", description: "Optional folder prefix to limit scope, e.g. 'Work'" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "find_broken_links",
+    description: "Find all [[wiki links]] that point to notes that don't exist. Returns source note and the broken link target.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "related_notes",
+    description: "Find notes related to a given note by shared tags, outgoing links, backlinks, or same folder. Results ranked by connection strength.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Vault-relative path or partial filename of the source note" },
+        limit: { type: "string", description: "Max results to return (default: 15)" },
+      },
+      required: ["path"],
+    },
+  },
+  {
+    name: "search_by_tag",
+    description: "Find all notes that contain a specific tag (frontmatter or inline). Partial tag match supported.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tag: { type: "string", description: "Tag to search for, with or without the # prefix" },
+      },
+      required: ["tag"],
+    },
+  },
+  {
+    name: "vault_stats",
+    description: "Vault health dashboard — total notes, notes by folder, orphan count, broken link count, most-linked notes, and notes modified in the last 7 days.",
+    inputSchema: { type: "object", properties: {}, required: [] },
   },
 ] as const;
 
@@ -167,8 +241,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "get_backlinks":   result = await handleGetBacklinks(a); break;
     case "get_tags":        result = await handleGetTags(a); break;
     case "get_metadata":    result = await handleGetMetadata(a); break;
-    case "git_sync":        result = handleGitSync(a); break;
-    default:                result = `Error: unknown tool "${name}"`;
+    case "get_vault_tree":  result = handleGetVaultTree(a); break;
+    case "get_recent_notes": result = handleGetRecentNotes(a); break;
+    case "get_all_tags":    result = handleGetAllTags(a); break;
+    case "git_sync":            result = handleGitSync(a); break;
+    case "find_orphan_notes":   result = handleFindOrphanNotes(a); break;
+    case "find_broken_links":   result = handleFindBrokenLinks(a); break;
+    case "related_notes":       result = handleRelatedNotes(a); break;
+    case "search_by_tag":       result = handleSearchByTag(a); break;
+    case "vault_stats":         result = handleVaultStats(a); break;
+    default:                    result = `Error: unknown tool "${name}"`;
   }
 
   return { content: [{ type: "text", text: result }] };

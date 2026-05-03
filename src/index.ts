@@ -11,6 +11,7 @@ import { handleSearchVault, handleListFolder } from "./tools/search.js";
 import { handleDailyNote } from "./tools/daily.js";
 import { handleHealthCheck } from "./tools/health.js";
 import { handleGetBacklinks, handleGetTags, handleGetMetadata } from "./tools/bridge.js";
+import { handleGitSync } from "./tools/git.js";
 
 const server = new Server(
   { name: "obsidian-mcp", version: "1.0.0" },
@@ -131,6 +132,20 @@ const TOOLS = [
       required: ["path"],
     },
   },
+  {
+    name: "git_sync",
+    description: "Commit and push any uncommitted changes for Obsidian tools (obsidian-mcp, obsidian-claude-panel, obsidian-finance-sync). Pass a project name to sync one, or omit/pass 'all' to sync all three.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        project: {
+          type: "string",
+          description: "Project to sync: 'obsidian-mcp', 'obsidian-claude-panel', 'obsidian-finance-sync', or 'all' (default)",
+        },
+      },
+      required: [],
+    },
+  },
 ] as const;
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
@@ -152,6 +167,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "get_backlinks":   result = await handleGetBacklinks(a); break;
     case "get_tags":        result = await handleGetTags(a); break;
     case "get_metadata":    result = await handleGetMetadata(a); break;
+    case "git_sync":        result = handleGitSync(a); break;
     default:                result = `Error: unknown tool "${name}"`;
   }
 

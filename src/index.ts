@@ -14,6 +14,7 @@ import { handleGetBacklinks, handleGetTags, handleGetMetadata } from "./tools/br
 import { handleGitSync } from "./tools/git.js";
 import { handleGetVaultTree, handleGetRecentNotes, handleGetAllTags } from "./tools/structure.js";
 import { handleFindOrphanNotes, handleFindBrokenLinks, handleRelatedNotes, handleSearchByTag, handleVaultStats } from "./tools/intelligence.js";
+import { handlePatchNote, handleUpsertFrontmatter } from "./tools/automator.js";
 
 const server = new Server(
   { name: "obsidian-mcp", version: "1.0.0" },
@@ -220,6 +221,36 @@ const TOOLS = [
     description: "Vault health dashboard — total notes, notes by folder, orphan count, broken link count, most-linked notes, and notes modified in the last 7 days.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
+  // ── Automator ─────────────────────────────────────────────────────────────
+  {
+    name: "patch_note",
+    description: "Surgical edits to a note without rewriting the whole file. Supports: replace (find & replace text), append_to_section (add content after a heading), prepend_to_section (insert right after a heading), replace_section (swap out a full section body).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Vault-relative path or partial filename" },
+        operation: { type: "string", description: "replace | append_to_section | prepend_to_section | replace_section" },
+        old_text: { type: "string", description: "Text to find (required for replace)" },
+        new_text: { type: "string", description: "Replacement text (required for replace)" },
+        replace_all: { type: "string", description: "Pass 'true' to replace every occurrence (replace only)" },
+        section: { type: "string", description: "Heading text to target, e.g. '## Tasks' or just 'Tasks' (required for section ops)" },
+        content: { type: "string", description: "Content to insert or use as section body (required for section ops)" },
+      },
+      required: ["path", "operation"],
+    },
+  },
+  {
+    name: "upsert_frontmatter",
+    description: "Add, update, or delete YAML frontmatter fields without touching the note body. Pass updates as a JSON object. Set a value to null to delete that key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Vault-relative path or partial filename" },
+        updates: { type: "string", description: 'JSON object of key→value pairs, e.g. {"status":"Active","tags":["work"]}. Set value to null to delete.' },
+      },
+      required: ["path", "updates"],
+    },
+  },
 ] as const;
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
@@ -250,6 +281,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "related_notes":       result = handleRelatedNotes(a); break;
     case "search_by_tag":       result = handleSearchByTag(a); break;
     case "vault_stats":         result = handleVaultStats(a); break;
+    case "patch_note":          result = handlePatchNote(a); break;
+    case "upsert_frontmatter":  result = handleUpsertFrontmatter(a); break;
     default:                    result = `Error: unknown tool "${name}"`;
   }
 

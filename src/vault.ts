@@ -43,6 +43,13 @@ export function getAllNotes(dir: string = VAULT_PATH): string[] {
   return results;
 }
 
+/** Resolve a note path: exact match first, then fuzzy basename match. Returns vault-relative path or null. */
+export function resolveNote(input: string): string | null {
+  if (noteExists(input)) return input;
+  const query = path.basename(input, ".md").toLowerCase();
+  return getAllNotes().find((p) => path.basename(p, ".md").toLowerCase().includes(query)) ?? null;
+}
+
 export function todayFilename(): string {
   const d = new Date();
   const yyyy = d.getFullYear();
